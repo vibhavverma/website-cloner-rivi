@@ -11,17 +11,23 @@ import (
 )
 
 // file extension map for directing files to their proper directory in O(1) time
-var (
-	extensionDir = map[string]string{
-		".css":  "css",
-		".js":   "js",
-		".jpg":  "imgs",
-		".jpeg": "imgs",
-		".gif":  "imgs",
-		".png":  "imgs",
-		".svg":  "imgs",
-	}
-)
+var extensionDir = map[string]string{
+	// CSS
+	".css": "css",
+	// JS
+	".js": "js",
+	// Images
+	".jpg": "imgs", ".jpeg": "imgs", ".gif": "imgs",
+	".png": "imgs", ".svg": "imgs", ".webp": "imgs",
+	".avif": "imgs", ".ico": "imgs",
+	// Fonts
+	".woff": "fonts", ".woff2": "fonts", ".ttf": "fonts",
+	".eot": "fonts", ".otf": "fonts",
+	// Assets
+	".json": "assets", ".webmanifest": "assets", ".map": "assets",
+	// Media
+	".mp4": "media", ".webm": "media", ".ogg": "media", ".mp3": "media",
+}
 
 // Extractor visits a link determines if its a page or sublink
 // downloads the contents to a correct directory in project folder
@@ -63,13 +69,13 @@ func writeFileToPath(projectPath, filename, fileDir string, resp *http.Response)
 	fullPath := filepath.Join(projectPath, fileDir, filename)
 
 	// Create the directory if it doesn't exist
-	err := os.MkdirAll(filepath.Dir(fullPath), 0777)
+	err := os.MkdirAll(filepath.Dir(fullPath), 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create directories for %s: %w", fullPath, err)
 	}
 
 	// Open the file for writing
-	f, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE, 0777)
+	f, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open file %s: %w", fullPath, err)
 	}
