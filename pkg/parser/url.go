@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"net/url"
 
 	strutil "github.com/torden/go-strutil"
@@ -49,23 +50,25 @@ func CreateURL(domain string) string {
 	return "https://" + domain
 }
 
-// GetDomain takes in a valid URL and returns the domain of the url
+// GetDomainSafe takes in a URL and returns the domain or an error
+func GetDomainSafe(rawURL string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse URL %q: %w", rawURL, err)
+	}
+	hostname := u.Hostname()
+	if hostname == "" {
+		return "", fmt.Errorf("no hostname found in URL %q", rawURL)
+	}
+	return hostname, nil
+}
+
+// GetDomain takes in a valid URL and returns the domain of the url.
+// Deprecated: Use GetDomainSafe instead to avoid panics.
 func GetDomain(validurl string) string {
-	/*
-		>>> https://google.com - Valid URL
-		<<< google.com - Hostname
-	*/
-
-	// parse the url
-	u, err := url.Parse(validurl)
-
+	domain, err := GetDomainSafe(validurl)
 	if err != nil {
 		panic(err)
 	}
-
-	// grab the hostname from the string
-	hostname := u.Hostname()
-
-	// hostname
-	return hostname
+	return domain
 }

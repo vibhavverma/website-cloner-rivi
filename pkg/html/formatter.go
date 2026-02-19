@@ -15,7 +15,7 @@ func FormatHTML(filePath string) {
 	}
 	data := gohtml.Format(string(dat))
 	b := []byte(data)
-	error := os.WriteFile(filePath, b, 0777)
+	error := os.WriteFile(filePath, b, 0644)
 	// handle this error
 	if error != nil {
 		// print it out

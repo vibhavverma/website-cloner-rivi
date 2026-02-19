@@ -1,11 +1,14 @@
 package crawler
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/goclone-dev/goclone/pkg/parser"
 )
@@ -25,37 +28,47 @@ var extensionDir = map[string]string{
 	".eot": "fonts", ".otf": "fonts",
 	// Assets
 	".json": "assets", ".webmanifest": "assets", ".map": "assets",
+	".lottie": "assets",
 	// Media
 	".mp4": "media", ".webm": "media", ".ogg": "media", ".mp3": "media",
+	// 3D Models
+	".glb": "models", ".gltf": "models", ".obj": "models",
+	".fbx": "models", ".dae": "models",
+	// Textures
+	".hdr": "textures", ".exr": "textures", ".ktx2": "textures",
+	".basis": "textures", ".dds": "textures",
+	// Shaders
+	".glsl": "shaders", ".vert": "shaders", ".frag": "shaders",
+	".vs": "shaders", ".fs": "shaders",
 }
 
-// Extractor visits a link determines if its a page or sublink
-// downloads the contents to a correct directory in project folder
-// TODO add functionality for determining if page or sublink
+// IsAssetExtension returns true if the extension is a known asset type
+func IsAssetExtension(ext string) bool {
+	_, ok := extensionDir[ext]
+	return ok
+}
+
+// ExtensionDir returns the directory name for a given extension, or empty string
+func ExtensionDir(ext string) string {
+	return extensionDir[ext]
+}
+
+// Extractor downloads a resource from link and saves it to the appropriate directory
 func Extractor(link string, projectPath string) error {
 	fmt.Println("Extracting --> ", link)
 
-	// get the html body
 	resp, err := http.Get(link)
 	if err != nil {
 		return fmt.Errorf("failed to GET %s: %w", link, err)
 	}
-
-	// Closure
 	defer resp.Body.Close()
 
-	// Get the original filename from the URL
 	base := parser.URLFilename(link)
-	// Get the clean extension
 	ext := parser.URLExtension(link)
 
-	// checks if there was a valid extension
 	if ext != "" {
-		// checks if that extension has a directory path name associated with it
-		// from the extensionDir map
 		dirPath := extensionDir[ext]
 		if dirPath != "" {
-			// If extension and path are valid pass to writeFileToPath
 			if err := writeFileToPath(projectPath, base, dirPath, resp); err != nil {
 				return err
 			}
@@ -65,29 +78,50 @@ func Extractor(link string, projectPath string) error {
 }
 
 func writeFileToPath(projectPath, filename, fileDir string, resp *http.Response) error {
-	// Create the full path
 	fullPath := filepath.Join(projectPath, fileDir, filename)
 
-	// Create the directory if it doesn't exist
-	err := os.MkdirAll(filepath.Dir(fullPath), 0755)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return fmt.Errorf("failed to create directories for %s: %w", fullPath, err)
 	}
 
-	// Open the file for writing
-	f, err := os.OpenFile(fullPath, os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open file %s: %w", fullPath, err)
-	}
-	defer f.Close()
-
-	// Read and write the file contents
-	htmlData, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
-	if _, err := f.Write(htmlData); err != nil {
-		return fmt.Errorf("failed to write file %s: %w", fullPath, err)
+
+	// Handle filename collisions: if file exists with different content, use hash suffix
+	finalPath := resolveCollision(fullPath, data)
+
+	if err := os.WriteFile(finalPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write file %s: %w", finalPath, err)
 	}
 	return nil
+}
+
+// resolveCollision checks if a file already exists at the given path.
+// If it exists with the same content, returns the same path (no-op write).
+// If it exists with different content, returns a new path with a hash suffix.
+// If it doesn't exist, returns the original path.
+func resolveCollision(fullPath string, newContent []byte) string {
+	existing, err := os.ReadFile(fullPath)
+	if err != nil {
+		// File doesn't exist, use original path
+		return fullPath
+	}
+
+	// File exists — check if content is identical
+	if bytes.Equal(existing, newContent) {
+		return fullPath
+	}
+
+	// Content differs — create a unique name with content hash
+	ext := filepath.Ext(fullPath)
+	base := strings.TrimSuffix(filepath.Base(fullPath), ext)
+	dir := filepath.Dir(fullPath)
+
+	hash := sha256.Sum256(newContent)
+	hashSuffix := fmt.Sprintf("%x", hash[:4]) // 8-char hex
+
+	newName := fmt.Sprintf("%s-%s%s", base, hashSuffix, ext)
+	return filepath.Join(dir, newName)
 }

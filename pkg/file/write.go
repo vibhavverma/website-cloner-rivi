@@ -20,13 +20,13 @@ func CreateProject(projectName string) string {
 	check(err)
 
 	// create asset directories
-	for _, dir := range []string{"css", "js", "imgs", "fonts", "assets", "media"} {
+	for _, dir := range []string{"css", "js", "imgs", "fonts", "assets", "media", "models", "textures", "shaders"} {
 		err := os.MkdirAll(filepath.Join(projectPath, dir), 0755)
 		check(err)
 	}
 
 	// main index file
-	_, err = os.Create(filepath.Join(projectPath, "index.html"))
+	err = os.WriteFile(filepath.Join(projectPath, "index.html"), nil, 0644)
 	check(err)
 	// project path
 	return projectPath
